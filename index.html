@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nightfall in Greyhaven — A Browser Board Game (Arkham-like)</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#121926; --ink:#e5f1ff; --muted:#94a3b8; --accent:#7dd3fc; --danger:#fca5a5; --ok:#86efac; --warn:#fde68a;}
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; background:radial-gradient(1200px 600px at 70% -10%, #1f2937 0%, #0b0f14 60%); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:8px 12px; display:flex; align-items:center; gap:12px; background:#0b1220; border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.5px; color:#bde0fe; }
+  header .small { color:var(--muted); font-size:12px; }
+  main { display:grid; grid-template-columns: 360px 1fr 320px; gap:12px; padding:12px; }
+  .panel { background:var(--panel); border:1px solid #1f2937; border-radius:10px; padding:10px; }
+  .panel h2 { font-size:14px; margin:0 0 8px 0; color:#c7d2fe; letter-spacing:.4px; }
+  #leftcol { display:flex; flex-direction:column; gap:12px; }
+  #players .row { display:flex; align-items:center; justify-content:space-between; padding:6px 8px; margin-bottom:6px; background:#0f172a; border:1px solid #1f2937; border-radius:8px; }
+  .tag { padding:2px 6px; border-radius:6px; font-size:11px; border:1px solid #374151; color:#cbd5e1;}
+  .btnbar { display:flex; flex-wrap:wrap; gap:6px; }
+  button { background:#0f172a; color:var(--ink); border:1px solid #334155; border-radius:8px; padding:8px 10px; cursor:pointer; transition:.15s transform ease; font-weight:600; }
+  button:hover { transform:translateY(-1px); border-color:#64748b; }
+  button.primary { background:#0b3b53; border-color:#155e75; }
+  button.danger { background:#4a1d1d; border-color:#7f1d1d; }
+  #board { height: calc(100vh - 120px); min-height:520px; background:#0a0f17; border-radius:12px; position:relative; overflow:hidden; }
+  #grid { position:absolute; inset:10px; display:grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap:10px; }
+  .loc { position:relative; border:1px solid #273043; border-radius:10px; padding:8px; background:linear-gradient(180deg,#0e1624 0%,#0a1120 100%); }
+  .loc h3 { margin:0 0 4px 0; font-size:13px; color:#a5b4fc; }
+  .loc .info { font-size:11px; color:var(--muted); display:flex; gap:8px; }
+  .loc .tokens { position:absolute; right:6px; bottom:6px; display:flex; gap:4px; flex-wrap:wrap; }
+  .token { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; border:2px solid #0b1220; }
+  .token.gate { background:#1f2937; box-shadow:0 0 8px 2px #93c5fd55 inset, 0 0 6px 1px #93c5fd33; }
+  .token.monst { background:#2b1b1b; box-shadow:0 0 8px 2px #f8717155 inset, 0 0 6px 1px #ef444433; }
+  .token.clue { background:#153a2c; box-shadow:0 0 8px 2px #86efac55 inset; }
+  .investigator { position:absolute; width:24px; height:24px; border-radius:50%; border:2px solid #000; background:#334155; display:grid; place-items:center; font-size:12px; }
+  #rightcol { display:flex; flex-direction:column; gap:12px; }
+  #log { height:220px; overflow:auto; background:#0b1220; padding:8px; border-radius:8px; border:1px solid #1f2937; font-size:13px; }
+  #log p { margin:0 0 6px 0; }
+  .doomtrack { display:flex; gap:4px; margin-top:6px; }
+  .doom { width:12px; height:12px; border-radius:3px; background:#1f2937; border:1px solid #374151; }
+  .doom.on { background:linear-gradient(180deg,#7f1d1d,#ef4444); }
+  .statrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .pill { border:1px solid #374151; border-radius:999px; padding:3px 8px; font-size:12px; }
+  .good { background:#052b1b; color:#bbf7d0; }
+  .bad { background:#2a0c0c; color:#fecaca; }
+  .neutral { background:#0b1322; color:#c7d2fe; }
+  .muted { color:#9ca3af; }
+  .sep { height:1px; background:#1f2937; margin:8px 0; }
+  .flex { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .kbd { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#111827; border:1px solid #374151; padding:1px 6px; border-radius:6px; font-size:12px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nightfall in Greyhaven</h1>
+  <div class="small">A compact, Arkham-style browser board game (original content). Hot-seat co-op for 1–4 players.</div>
+</header>
+
+<main>
+  <section id="leftcol">
+    <div class="panel">
+      <h2>Table Controls</h2>
+      <div class="btnbar">
+        <button class="primary" id="btn-new">New Game</button>
+        <button id="btn-save">Save</button>
+        <button id="btn-load">Load</button>
+        <button id="btn-help">Help</button>
+      </div>
+      <div class="sep"></div>
+      <div class="grid2">
+        <div>
+          <h2>Turn Phases</h2>
+          <div class="btnbar">
+            <button id="btn-upkeep">Upkeep</button>
+            <button id="btn-move">Move</button>
+            <button id="btn-enc">Encounter</button>
+            <button id="btn-mythos">Mythos</button>
+          </div>
+        </div>
+        <div>
+          <h2>Actions</h2>
+          <div class="btnbar">
+            <button id="btn-search">Search / Clue</button>
+            <button id="btn-fight">Fight / Evade</button>
+            <button id="btn-rest">Rest</button>
+            <button id="btn-endturn">End Turn ▶</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="players" class="panel">
+      <h2>Investigators</h2>
+      <div id="playersList"></div>
+      <div class="sep"></div>
+      <div class="statrow">
+        <span class="pill neutral">Phase: <span id="ui-phase">Upkeep</span></span>
+        <span class="pill good">Doom: <span id="ui-doom">0</span>/<span id="ui-doommax">10</span></span>
+        <span class="pill good">Clues: <span id="ui-clues">0</span></span>
+        <span class="pill bad">Monsters: <span id="ui-monsters">0</span></span>
+        <span class="pill neutral">Turn: <span id="ui-turn">1</span></span>
+      </div>
+      <div class="doomtrack" id="doomtrack"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="board">
+    <div id="grid"></div>
+  </section>
+
+  <section id="rightcol">
+    <div class="panel">
+      <h2>Active Player</h2>
+      <div id="activeBox"></div>
+      <div class="sep"></div>
+      <div class="flex">
+        <span>Switch: </span>
+        <div id="switchers" class="btnbar"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Mythos & Agenda</h2>
+      <div id="agendaBox" class="muted" style="min-height:60px;"></div>
+      <div class="sep"></div>
+      <div class="btnbar">
+        <button id="btn-spawn">Spawn Gate</button>
+        <button id="btn-dropclue">Drop Clue</button>
+        <button class="danger" id="btn-advance">Advance Doom</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Game Log</h2>
+      <div id="log"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===========
+   Nightfall in Greyhaven — compact Arkham-like in one file
+   Original mechanics & content. No copyrighted text or art.
+   =========== */
+
+/*** Utilities ***/
+const $ = (sel, el=document) => el.querySelector(sel);
+const $$ = (sel, el=document) => [...el.querySelectorAll(sel)];
+const rnd = (n) => Math.floor(Math.random()*n);
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+const dice = (count, target=5) => {
+  let hits=0, rolls=[];
+  for(let i=0;i<count;i++){ const r=1+rnd(6); rolls.push(r); if(r>=target) hits++; }
+  return {hits, rolls};
+};
+const log = (msg) => { const p=document.createElement('p'); p.innerHTML=msg; $("#log").prepend(p); };
+
+/*** Data ***/
+const LOCS = [
+  { id:"train", name:"Greyhaven Station", trait:"Street", diff:2 },
+  { id:"uni", name:"Eldwood University", trait:"Academic", diff:3 },
+  { id:"harbor", name:"Blackwater Docks", trait:"Harbor", diff:3 },
+  { id:"theatre", name:"Orpheum Theatre", trait:"Society", diff:2 },
+  { id:"square", name:"Ashen Square", trait:"Street", diff:2 },
+  { id:"hospital", name:"St. Brigid Hospital", trait:"Sanctum", diff:2 },
+  { id:"museum", name:"Museum of Curios", trait:"Occult", diff:3 },
+  { id:"church", name:"Chapel of Lanterns", trait:"Sacred", diff:2 },
+  { id:"cemetery", name:"Wraithwood Cemetery", trait:"Grave", diff:3 },
+];
+
+const ENCOUNTERS = {
+  Street: [
+    "You hear whispers in the wind. Lose 1 Sanity unless you spend 1 Clue.",
+    "A patrolman questions you. Pass Will(1) or discard 1 Item."
+  ],
+  Academic: [
+    "A dusty tome reveals sigils. Gain 1 Clue.",
+    "Professor needs help; pass Intellect(2) to draw a Spell."
+  ],
+  Harbor: [
+    "Smuggler offers a relic. Pay 1 Health to gain 1 Item.",
+    "Thick fog: Evade test Agility(2) or become Delayed."
+  ],
+  Society: [
+    "Secret society invites you. Pass Will(2) to gain Ally.",
+    "Charity gala distracts you: lose 1 Clue."
+  ],
+  Sanctum: [
+    "Nurse heals you. Recover 2 Health.",
+    "Quiet ward unnerves you: lose 1 Sanity."
+  ],
+  Occult: [
+    "Cursed idol hums. Gain 1 Spell then lose 1 Sanity.",
+    "Shadow clings to you. Will(3) or Doom +1."
+  ],
+  Sacred: [
+    "Light pierces gloom. Recover 2 Sanity.",
+    "Confessional truth. Gain 1 Clue, then Doom +1 if you have a Spell."
+  ],
+  Grave: [
+    "Ghast rises! Fight(2) or take 1 Health dmg.",
+    "Cold stones: Intellect(2) to find 1 Clue."
+  ]
+};
+
+const NAMES = [
+  ["Ruth Calder","Balanced","Will"],
+  ["Jonah Pike","Brawler","Fight"],
+  ["Elise Hart","Scholar","Intellect"],
+  ["Tamsin Vale","Rogue","Agility"]
+];
+
+const MONSTERS = [
+  { name:"Ghoul", fight:2, evade:2, hp:1, dmg:1, horror:1 },
+  { name:"Witch", fight:3, evade:2, hp:2, dmg:1, horror:1 },
+  { name:"Hound", fight:2, evade:3, hp:2, dmg:2, horror:0 },
+  { name:"Spawn", fight:4, evade:1, hp:3, dmg:2, horror:2 },
+];
+
+const AGENDAS = [
+  "Stars wheel into a crooked alignment. Gates open more often this turn.",
+  "Tide of silence: Each Evade is +1 difficulty.",
+  "Curtain of frost: Movement limited to 1 step this turn.",
+  "Echoes from below: First Encounter this round adds Doom +1 on fail."
+];
+
+/*** Game State ***/
+const G = {
+  players: [],
+  active: 0,
+  phase: "Upkeep",
+  turn: 1,
+  doom: 0,
+  doomMax: 10,
+  clues: 0,
+  monsters: [],
+  gates: [],
+  delays: {}, // id -> true
+  agenda: null,
+};
+
+/*** Setup ***/
+function createPlayers(n=2){
+  G.players = [];
+  for(let i=0;i<n;i++){
+    const [name,arch,focus] = NAMES[i%NAMES.length];
+    G.players.push({
+      id: i,
+      name,
+      arch,
+      focus,
+      health: 7,
+      sanity: 7,
+      clues: 0,
+      items: [],
+      spells: [],
+      loc: "square",
+      delayed: false,
+      stats: { Will:3, Fight:3, Intellect:3, Agility:3 }
+    });
+  }
+  G.active = 0;
+}
+
+function resetBoard(){
+  G.monsters = [];
+  G.gates = [];
+  G.clues = 0;
+  G.doom = 0;
+  G.turn = 1;
+  G.phase = "Upkeep";
+  G.agenda = AGENDAS[rnd(AGENDAS.length)];
+  G.players.forEach(p=>{ p.loc="square"; p.health=7; p.sanity=7; p.clues=0; p.items=[]; p.spells=[]; p.delayed=false; });
+}
+
+/*** Rendering ***/
+function render(){
+  // Left panel stats
+  $("#ui-phase").textContent = G.phase;
+  $("#ui-doom").textContent = G.doom;
+  $("#ui-doommax").textContent = G.doomMax;
+  $("#ui-clues").textContent = G.clues;
+  $("#ui-monsters").textContent = G.monsters.length;
+  $("#ui-turn").textContent = G.turn;
+
+  // Doom track
+  const dt = $("#doomtrack");
+  dt.innerHTML = "";
+  for(let i=0;i<G.doomMax;i++){
+    const d=document.createElement('div'); d.className='doom'+(i<G.doom?' on':''); dt.appendChild(d);
+  }
+
+  // Players list
+  const pl = $("#playersList"); pl.innerHTML="";
+  G.players.forEach((p,idx)=>{
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML = `
+      <div>
+        <div><strong>${p.name}</strong> <span class="tag">${p.arch}</span></div>
+        <div class="muted" style="font-size:12px;">HP ${p.health} • SAN ${p.sanity} • Clues ${p.clues} • ${locById(p.loc).name}</div>
+      </div>
+      <div><span class="tag">${idx===G.active?'Active':''}</span></div>
+    `;
+    pl.appendChild(row);
+  });
+
+  // Active
+  const ap = G.players[G.active];
+  $("#activeBox").innerHTML = `
+    <div class="statrow">
+      <div class="pill neutral"><strong>${ap.name}</strong></div>
+      <div class="pill">Focus: ${ap.focus}</div>
+    </div>
+    <div class="statrow" style="margin-top:6px;">
+      <div class="pill ${ap.health<=3?'bad':'good'}">Health: ${ap.health}</div>
+      <div class="pill ${ap.sanity<=3?'bad':'good'}">Sanity: ${ap.sanity}</div>
+      <div class="pill neutral">Clues: ${ap.clues}</div>
+    </div>
+    <div class="muted" style="margin-top:8px;">Items: ${ap.items.join(', ')||'—'}</div>
+    <div class="muted">Spells: ${ap.spells.join(', ')||'—'}</div>
+    <div class="muted">Location: ${locById(ap.loc).name}</div>
+  `;
+
+  // Switchers
+  const sw=$("#switchers"); sw.innerHTML="";
+  G.players.forEach((p,idx)=>{
+    const b=document.createElement('button'); b.textContent=`P${idx+1}`; if(idx===G.active) b.classList.add('primary');
+    b.onclick=()=>{ G.active=idx; render(); };
+    sw.appendChild(b);
+  });
+
+  // Agenda
+  $("#agendaBox").textContent = G.agenda || "—";
+
+  // Board grid
+  const grid=$("#grid"); grid.innerHTML="";
+  LOCS.forEach((L,i)=>{
+    const cell=document.createElement('div'); cell.className='loc';
+    const mHere = G.monsters.filter(m=>m.loc===L.id).length;
+    const gHere = G.gates.includes(L.id);
+    const cluesHere = cluesAt(L.id);
+
+    cell.innerHTML = `
+      <h3>${L.name}</h3>
+      <div class="info"><span>${L.trait}</span><span>Diff ${L.diff}</span></div>
+      <div class="tokens"></div>
+    `;
+    const t = $(".tokens", cell);
+    if (gHere){ const a=token('gate','G'); t.appendChild(a); }
+    for(let k=0;k<mHere;k++){ t.appendChild(token('monst','M')); }
+    for(let k=0;k<cluesHere;k++){ t.appendChild(token('clue','C')); }
+
+    // Player pawns
+    G.players.forEach((p,idx)=>{
+      if(p.loc===L.id){
+        const iv=document.createElement('div'); iv.className='investigator'; iv.style.left = (8+idx*26)+'px'; iv.style.top=(60)+'px';
+        iv.textContent = (idx+1);
+        iv.title = p.name;
+        cell.appendChild(iv);
+      }
+    });
+
+    // Click to move active during Move phase
+    cell.onclick = ()=>{
+      if(G.phase!=="Move"){ log(`<span class="muted">You can only relocate during the Move phase.</span>`); return; }
+      moveActiveTo(L.id);
+    };
+
+    grid.appendChild(cell);
+  });
+}
+
+function token(cls, label){
+  const e=document.createElement('div'); e.className='token '+cls; e.textContent=label; return e;
+}
+
+function locById(id){ return LOCS.find(L=>L.id===id); }
+function locRandom(){ return LOCS[rnd(LOCS.length)]; }
+function cluesAt(id){ return (G._cluesByLoc && G._cluesByLoc[id])||0; }
+function addClue(id){ if(!G._cluesByLoc) G._cluesByLoc={}; G._cluesByLoc[id]=(G._cluesByLoc[id]||0)+1; G.clues++; }
+function takeClue(id){ if(!G._cluesByLoc) return false; if((G._cluesByLoc[id]||0)>0){ G._cluesByLoc[id]--; G.clues= Math.max(0,G.clues-1); return true; } return false; }
+
+/*** Actions ***/
+function moveActiveTo(id){
+  const p=G.players[G.active];
+  // Basic rule: can move 2 spaces per Move unless delayed or agenda says 1
+  let maxSteps = 2;
+  if((G.agenda||"").includes("limited to 1")) maxSteps=1;
+  if(p.delayed){ log(`${p.name} is Delayed and stands up instead of moving.`); p.delayed=false; render(); return; }
+
+  // Simple distance: allow move always but consume 1 move; we track only once per Move click for this compact version
+  if(p._movedSteps==null) p._movedSteps=0;
+  if(p._movedSteps>=maxSteps){ log(`${p.name} has no movement left.`); return; }
+
+  p.loc = id;
+  p._movedSteps++;
+  log(`<strong>${p.name}</strong> moves to <em>${locById(id).name}</em>.`);
+  render();
+}
+
+function doUpkeep(){
+  G.phase="Upkeep";
+  G.players.forEach(p=>{ p._movedSteps=0; });
+  log(`<strong>Upkeep:</strong> Refresh, adjust, ready.`);
+  render();
+}
+function doMove(){
+  G.phase="Move";
+  log(`<strong>Move:</strong> Each investigator may move up to 2 spaces${(G.agenda||"").includes("limited to 1")?" (limited to 1 by Agenda)":"."}`);
+  render();
+}
+function doEncounter(){
+  G.phase="Encounter";
+  const p=G.players[G.active];
+  const L=locById(p.loc);
+  const trait = L.trait;
+  const pool = ENCOUNTERS[trait] || ["Nothing happens."];
+  const text = pool[rnd(pool.length)];
+  log(`<strong>Encounter (${L.name}):</strong> ${text}`);
+  resolveEncounter(p, L, text);
+  render();
+}
+function doMythos(){
+  G.phase="Mythos";
+  // Spawn Gate 60% chance, Monster 70% chance, Clue 60% chance, Doom 25% baseline
+  if(Math.random()<0.6) spawnGate();
+  if(Math.random()<0.7) spawnMonster();
+  if(Math.random()<0.6) dropClue();
+  let doomOdds = 0.25 + (G.gates.length*0.05);
+  if(Math.random()<doomOdds) advanceDoom();
+  moveMonsters();
+  G.turn++;
+  log(`<strong>Mythos resolves.</strong> Turn advances to <strong>${G.turn}</strong>.`);
+  G.phase="Upkeep";
+  render();
+}
+function dropClue(){
+  const L = locRandom().id; addClue(L);
+  log(`A clue appears at <em>${locById(L).name}</em>.`);
+  render();
+}
+function spawnGate(){
+  const L = locRandom().id;
+  if(!G.gates.includes(L)){
+    G.gates.push(L);
+    log(`<span class="bad">A gate yawns open at <em>${locById(L).name}</em>!</span>`);
+    if((G.agenda||"").includes("Gates open more often")) { if(Math.random()<0.5) { const L2=locRandom().id; if(!G.gates.includes(L2)){ G.gates.push(L2); log(`<span class="bad">A second gate tears open at <em>${locById(L2).name}</em>!</span>`); } } }
+  } else {
+    advanceDoom(); // duplicate pressure
+  }
+  render();
+}
+function spawnMonster(){
+  const L = G.gates.length? G.gates[rnd(G.gates.length)] : locRandom().id;
+  const m = Object.assign({id: crypto.randomUUID(), loc:L}, MONSTERS[rnd(MONSTERS.length)]);
+  G.monsters.push(m);
+  log(`<span class="bad">A ${m.name} emerges at <em>${locById(L).name}</em>.</span>`);
+  render();
+}
+function advanceDoom(n=1){
+  G.doom = clamp(G.doom+n,0,G.doomMax);
+  log(`<span class="bad"><strong>Doom +${n}</strong> (${G.doom}/${G.doomMax})</span>`);
+  if(G.doom>=G.doomMax){ defeat("The Ancient Horror awakens. The city is lost."); }
+  render();
+}
+function moveMonsters(){
+  // Simple AI: 50% move towards Ashen Square, else stay
+  G.monsters.forEach(m=>{
+    if(Math.random()<0.5){ m.loc="square"; }
+  });
+  // If monsters share space with investigators, auto-engage for damage
+  G.players.forEach(p=>{
+    const threats = G.monsters.filter(m=>m.loc===p.loc);
+    if(threats.length){
+      const total = threats.reduce((s,m)=>s+m.horror,0);
+      if(total>0){ p.sanity = clamp(p.sanity-total,0,10); log(`<span class="bad">${p.name} loses ${total} Sanity from looming horrors.</span>`); checkDefeat(p); }
+    }
+  });
+}
+
+function resolveEncounter(p, L, text){
+  const skillTest = (stat, diff) => {
+    const base = p.stats[stat] + (p.focus===stat?1:0);
+    const {hits,rolls} = dice(base,5);
+    log(`${p.name} tests <strong>${stat}</strong> (need ${diff}). Rolls [${rolls.join(', ')}] → <strong>${hits}</strong> hits.`);
+    return hits>=diff;
+  };
+
+  if(text.includes("Gain 1 Clue")){ p.clues++; log(`<span class="good">${p.name} gains 1 Clue.</span>`); }
+  if(text.includes("Recover 2 Health")){ p.health=clamp(p.health+2,0,10); }
+  if(text.includes("Recover 2 Sanity")){ p.sanity=clamp(p.sanity+2,0,10); }
+  if(text.includes("lose 1 Sanity")){ p.sanity=clamp(p.sanity-1,0,10); checkDefeat(p); }
+  if(text.includes("lose 1 Clue") && p.clues>0){ p.clues--; }
+  if(text.includes("discard 1 Item") && p.items.length){ p.items.pop(); }
+  if(text.includes("draw a Spell")){ p.spells.push("Ward of Dusk"); }
+  if(text.includes("gain Ally")){ p.items.push("Ally: Streetwise"); }
+  if(text.includes("Pay 1 Health")){ p.health=clamp(p.health-1,0,10); checkDefeat(p); if(p.health>0){ p.items.push("Relic: Brine Coin"); } }
+  if(text.includes("become Delayed")){ p.delayed=true; }
+  if(text.includes("Will(")){ const d=+text.match(/Will\((\d)\)/)[1]; if(!skillTest("Will",d)){ if(text.includes("Doom +1")) advanceDoom(1); } }
+  if(text.includes("Intellect(")){ const d=+text.match(/Intellect\((\d)\)/)[1]; if(skillTest("Intellect",d)) { p.clues++; log(`<span class="good">${p.name} discovers a Clue.</span>`); } }
+  if(text.includes("Agility(")){ const d=+text.match(/Agility\((\d)\)/)[1]; if(!skillTest("Agility",d)) { p.delayed=true; log(`${p.name} is Delayed.`); } }
+  if(text.includes("Fight(")){ const d=+text.match(/Fight\((\d)\)/)[1]; if(!skillTest("Fight",d)) { p.health=clamp(p.health-1,0,10); log(`<span class="bad">${p.name} suffers 1 damage.</span>`); checkDefeat(p); } }
+}
+
+function checkDefeat(p){
+  if(p.health<=0){ defeat(`${p.name} is defeated (Health).`); }
+  if(p.sanity<=0){ defeat(`${p.name} is lost to madness.`); }
+}
+
+function defeat(reason){
+  log(`<strong style="color:#fda4af">Defeat:</strong> ${reason}`);
+  alert("Defeat: "+reason);
+}
+
+function victory(){
+  alert("Victory! Doom track sealed and no open gates!");
+}
+
+/*** Player-facing Buttons ***/
+$("#btn-new").onclick = ()=>{
+  const n = parseInt(prompt("Number of investigators (1-4)?","2")||"2",10);
+  createPlayers(clamp(n,1,4));
+  resetBoard();
+  // Seed a few clues
+  for(let i=0;i<3;i++) addClue(locRandom().id);
+  log(`<strong>New game:</strong> ${G.players.length} investigators begin at Ashen Square.`);
+  render();
+};
+$("#btn-save").onclick = ()=>{
+  localStorage.setItem("greyhaven_save", JSON.stringify(G));
+  log(`<span class="good">Game saved.</span>`);
+};
+$("#btn-load").onclick = ()=>{
+  const raw = localStorage.getItem("greyhaven_save");
+  if(!raw){ alert("No save found."); return; }
+  const saved = JSON.parse(raw);
+  Object.assign(G, saved);
+  log(`<span class="good">Game loaded.</span>`);
+  render();
+};
+$("#btn-help").onclick = ()=>{
+  alert([
+    "Nightfall in Greyhaven — Quick Rules:",
+    "• Phases each round: Upkeep → Move → Encounter → Mythos.",
+    "• Move phase: click any location to move your active investigator (up to 2 steps; Agenda may limit to 1).",
+    "• Encounter phase: click Encounter to resolve an event at your location.",
+    "• Mythos phase: the city fights back — gates, monsters, clues, and doom.",
+    "• Use Search/Clue to try to pick up a clue at your space; Fight/Evade to engage monsters there; Rest to heal 1/1.",
+    "• Win by finishing Mythos with Doom low and no open gates (small game: if Doom ≤ 3 at Turn ≥ 10 and no gates, you win).",
+    "• Hot-seat: switch Active Player with the P1/P2 buttons on the right."
+  ].join("\n"));
+};
+
+$("#btn-upkeep").onclick = ()=>doUpkeep();
+$("#btn-move").onclick   = ()=>doMove();
+$("#btn-enc").onclick    = ()=>doEncounter();
+$("#btn-mythos").onclick = ()=>doMythos();
+
+$("#btn-search").onclick = ()=>{
+  const p=G.players[G.active];
+  const c = takeClue(p.loc);
+  if(c){ p.clues++; log(`<span class="good">${p.name} collects a clue.</span>`); }
+  else { log(`${p.name} searches but finds nothing.`); }
+  render();
+};
+$("#btn-fight").onclick = ()=>{
+  const p=G.players[G.active];
+  const foes = G.monsters.filter(m=>m.loc===p.loc);
+  if(!foes.length){ log(`${p.name} has no enemies here.`); return; }
+  // Attempt fight, if fail try evade
+  const m = foes[0];
+  const atk = dice(p.stats.Fight + (p.focus==="Fight"?1:0),5);
+  log(`${p.name} attacks ${m.name}: rolls [${atk.rolls.join(', ')}] → ${atk.hits} hits.`);
+  if(atk.hits >= m.hp){
+    // Defeat monster
+    G.monsters = G.monsters.filter(x=>x.id!==m.id);
+    log(`<span class="good">${p.name} defeats the ${m.name}!</span>`);
+    if(Math.random()<0.4){ p.clues++; log(`<span class="good">${p.name} gains 1 Clue from the trophy.</span>`); }
+  } else {
+    // Monster strikes back
+    p.health = clamp(p.health - m.dmg, 0, 10);
+    p.sanity = clamp(p.sanity - m.horror, 0, 10);
+    log(`<span class="bad">${m.name} hits back: -${m.dmg} HP, -${m.horror} SAN.</span>`);
+    checkDefeat(p);
+    // Evade chance
+    const ev = dice(p.stats.Agility + (p.focus==="Agility"?1:0),5);
+    if(ev.hits >= m.evade){ log(`${p.name} evades to an adjacent space.`); p.loc = "train"; } // simple escape
+  }
+  render();
+};
+$("#btn-rest").onclick = ()=>{
+  const p=G.players[G.active];
+  p.health = clamp(p.health+1,0,10);
+  p.sanity = clamp(p.sanity+1,0,10);
+  log(`${p.name} rests and recovers <span class="good">+1 HP</span> and <span class="good">+1 SAN</span>.`);
+  render();
+};
+$("#btn-endturn").onclick = ()=>{
+  // small victory condition
+  if(G.turn>=10 && G.doom<=3 && G.gates.length===0){ victory(); return; }
+  // pass to next player
+  G.active = (G.active+1)%G.players.length;
+  log(`Active player is now <strong>${G.players[G.active].name}</strong>.`);
+  render();
+};
+
+// Mythos side buttons
+$("#btn-spawn").onclick = ()=>spawnGate();
+$("#btn-dropclue").onclick = ()=>dropClue();
+$("#btn-advance").onclick = ()=>advanceDoom(1);
+
+// Initial boot (auto new game for convenience)
+createPlayers(2);
+resetBoard();
+for(let i=0;i<3;i++) addClue(locRandom().id);
+log(`<strong>New game:</strong> 2 investigators begin at Ashen Square.`);
+render();
+
+</script>
+</body>
+</html>
