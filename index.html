@@ -50,6 +50,23 @@
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .kbd { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#111827; border:1px solid #374151; padding:1px 6px; border-radius:6px; font-size:12px; }
   a { color:var(--accent); }
+  /* —— Dice roller & location art —— */
+#dicePanel .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+#diceBox { min-height:76px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding-top:6px; }
+.die {
+  width:44px; height:44px; border-radius:10px; background:#0f172a; border:1px solid #334155;
+  display:grid; place-items:center; font-size:18px; position:relative;
+}
+.die.roll { animation: shake .5s ease; }
+@keyframes shake { 0%,100%{transform:rotate(0)} 25%{transform:rotate(8deg)} 75%{transform:rotate(-8deg)} }
+.pips { width:30px; height:30px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:3px; }
+.pip { width:8px; height:8px; border-radius:50%; background:#e5f1ff; justify-self:center; align-self:center; }
+
+.loc .art {
+  position:absolute; left:6px; bottom:6px; width:44px; height:44px; border-radius:8px;
+  border:1px solid #223046; background:#0b1220 center/cover no-repeat; opacity:.9;
+  box-shadow:inset 0 0 12px #0005;
+}
 </style>
 </head>
 <body>
@@ -113,6 +130,15 @@
   <section id="rightcol">
     <div class="panel">
       <h2>Active Player</h2>
+      <div class="panel" id="dicePanel">
+  <h2>Dice Roller</h2>
+  <div class="row">
+    <label>Dice: <input id="ui-dice-count" type="number" min="1" max="10" value="3" class="kbd" style="width:60px;"></label>
+    <label>Target (success on ≥): <input id="ui-dice-target" type="number" min="2" max="6" value="5" class="kbd" style="width:60px;"></label>
+    <button id="btn-roll" class="primary">Roll</button>
+  </div>
+  <div id="diceBox" aria-live="polite"></div>
+</div>
       <div id="activeBox"></div>
       <div class="sep"></div>
       <div class="flex">
@@ -169,6 +195,26 @@ const LOCS = [
   { id:"church", name:"Chapel of Lanterns", trait:"Sacred", diff:2 },
   { id:"cemetery", name:"Wraithwood Cemetery", trait:"Grave", diff:3 },
 ];
+  /* Simple icon art (inline SVG via data URI) */
+const ICON_EMOJI = {
+  train: "🚉",   // Greyhaven Station
+  uni: "🎓",     // Eldwood University
+  harbor: "⚓",  // Blackwater Docks
+  theatre: "🎭", // Orpheum Theatre
+  square: "🏙️", // Ashen Square
+  hospital: "🏥",// St. Brigid Hospital
+  museum: "🏺",  // Museum of Curios
+  church: "⛪",  // Chapel of Lanterns
+  cemetery: "🪦" // Wraithwood Cemetery
+};
+function emojiDataURI(ch) {
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128'>
+       <rect rx='16' ry='16' width='100%' height='100%' fill='#0b1322'/>
+       <text x='50%' y='58%' font-size='88' text-anchor='middle' dominant-baseline='middle'>${ch}</text>
+     </svg>`;
+  return 'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")';
+}
 
 const ENCOUNTERS = {
   Street: [
@@ -347,6 +393,11 @@ function render(){
       <div class="info"><span>${L.trait}</span><span>Diff ${L.diff}</span></div>
       <div class="tokens"></div>
     `;
+    // Add art tile for the location
+const art = document.createElement('div');
+art.className = 'art';
+art.style.backgroundImage = emojiDataURI(ICON_EMOJI[L.id] || "❖");
+cell.appendChild(art);
     const t = $(".tokens", cell);
     if (gHere){ const a=token('gate','G'); t.appendChild(a); }
     for(let k=0;k<mHere;k++){ t.appendChild(token('monst','M')); }
@@ -617,6 +668,37 @@ resetBoard();
 for(let i=0;i<3;i++) addClue(locRandom().id);
 log(`<strong>New game:</strong> 2 investigators begin at Ashen Square.`);
 render();
+  /* Dice visuals */
+function drawDieFace(n){
+  const pipPos = {
+    1:[5], 2:[1,9], 3:[1,5,9], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,7,9]
+  };
+  const die = document.createElement('div'); die.className = 'die roll';
+  const box = document.createElement('div'); box.className = 'pips';
+  (pipPos[n]||[]).forEach(idx=>{
+    const pip = document.createElement('div'); pip.className='pip';
+    // place pip into a 3x3
+    const row = Math.ceil(idx/3), col = ((idx-1)%3)+1;
+    pip.style.gridRow = row; pip.style.gridColumn = col;
+    box.appendChild(pip);
+  });
+  die.appendChild(box);
+  setTimeout(()=>die.classList.remove('roll'), 550);
+  return die;
+}
+function showRolls(rolls){
+  const box = document.getElementById('diceBox');
+  box.innerHTML = '';
+  rolls.forEach(r => box.appendChild(drawDieFace(r)));
+}
+  // Dice roller button
+document.getElementById('btn-roll').onclick = ()=>{
+  const count = clamp(parseInt(document.getElementById('ui-dice-count').value||'1',10),1,10);
+  const target = clamp(parseInt(document.getElementById('ui-dice-target').value||'5',10),2,6);
+  const {hits, rolls} = dice(count, target);
+  showRolls(rolls);
+  log(`<strong>Dice:</strong> rolled [${rolls.join(', ')}], successes on ≥ ${target} → <strong>${hits}</strong> hits.`);
+};
 
 </script>
 </body>
